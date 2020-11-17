@@ -1,0 +1,4 @@
+CUDA_VISIBLE_DEVICES=5 python test_widerface.py --trained_model './Wider_resnet152_weight/Resnet152_Final.pth' --network resnet152 --save_folder './widerface_evaluate/Wider_resnet152_train/'
+CUDA_VISIBLE_DEVICES=5 python test_widerface.py --trained_model './FDDB_resnet34_weight/Resnet34_Final.pth' --network resnet34 --save_folder './widerface_evaluate/FDDB_resnet34_train/'
+CUDA_VISIBLE_DEVICES=5 python test_widerface.py --trained_model './Wider_resnet34_weight/Resnet34_Final.pth' --network resnet34 --save_folder './widerface_evaluate/Wider_resnet34_train/'
+CUDA_VISIBLE_DEVICES=5 python test_widerface.py --trained_model './Wider_resnet18_weight/Resnet18_Final.pth' --network resnet18 --save_folder './widerface_evaluate/Wider_resnet18_train/'

@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 import argparse
 import torch.utils.data as data
 from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, cfg_re18, cfg_re34, cfg_re152
-from layers.modules import MultiBoxLoss
+from layers.modules import MultiBoxLoss2
 from layers.functions.prior_box import PriorBox
 import time
 import datetime
@@ -15,32 +15,46 @@ from models.retinaface import RetinaFace
 
 parser = argparse.ArgumentParser(description='Retinaface Training')
 parser.add_argument('--training_dataset', default='./data/widerface/train/label.txt', help='Training dataset directory')
-parser.add_argument('--network', default='resnet152', help='Backbone network mobile0.25 or resnet50')
+parser.add_argument('--network', default='resnet18', help='Backbone network mobile0.25 or resnet50')
+parser.add_argument('--teacher_network', default='resnet152', help='Backbone network mobile0.25 or resnet50')
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers used in dataloading')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float, help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
-parser.add_argument('--resume_net', default=None, help='resume net for retraining')
+parser.add_argument('--resume_net', default='./Wider_resnet34_weight/Resnet18_Final.pth', help='resume net for retraining')
+parser.add_argument('--resume_teacher_net', default='./Wider_resnet152_weight/Resnet152_Final.pth', help='resume net for retraining')
 parser.add_argument('--resume_epoch', default=0, type=int, help='resume iter for retraining')
 parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
-parser.add_argument('--save_folder', default='./weights/', help='Location to save checkpoint models')
+parser.add_argument('--save_folder', default='./teacher_train/', help='Location to save checkpoint models')
+parser.add_argument('--r_weight', default=0.3, type=float, help='weight of regression loss')
+parser.add_argument('--c_weight', default=0.1, type=float, help='weight of classification loss')
 
 args = parser.parse_args()
 
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
-cfg = None
-if args.network == "mobile0.25":
-    cfg = cfg_mnet
-elif args.network == "resnet50":
-    cfg = cfg_re50
-elif args.network == "resnet18":
-    cfg = cfg_re18
-elif args.network == "resnet34":
-    cfg = cfg_re34
-elif args.network == "resnet152":
-    cfg = cfg_re152
 
+model_name = args.teacher_network + "_" + args.network + "_" + str(args.r_weight) + "_" + str(args.c_weight)
+print(model_name)
+
+
+def get_config(name):
+    _cfg = None
+    if name == "mobile0.25":
+        _cfg = cfg_mnet
+    elif name == "resnet50":
+        _cfg = cfg_re50
+    elif name == "resnet18":
+        _cfg = cfg_re18
+    elif name== "resnet34":
+        _cfg = cfg_re34
+    elif name == "resnet152":
+        _cfg = cfg_re152
+    return _cfg
+
+
+cfg = get_config(args.network)
+teacher_cfg = get_config(args.teacher_network)
 rgb_mean = (104, 117, 123) # bgr order
 num_classes = 2
 img_dim = cfg['image_size']
@@ -58,6 +72,7 @@ training_dataset = args.training_dataset
 save_folder = args.save_folder
 
 net = RetinaFace(cfg=cfg)
+teacher_net = RetinaFace(cfg=teacher_cfg)
 print("Printing net...")
 print(net)
 
@@ -76,21 +91,40 @@ if args.resume_net is not None:
         new_state_dict[name] = v
     net.load_state_dict(new_state_dict)
 
+if args.resume_teacher_net is not None:
+    print('Loading resume teacher net...')
+    state_dict = torch.load(args.resume_teacher_net)
+    # create new OrderedDict that does not contain `module.`
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        head = k[:7]
+        if head == 'module.':
+            name = k[7:] # remove `module.`
+        else:
+            name = k
+        new_state_dict[name] = v
+    teacher_net.load_state_dict(new_state_dict)
+
 if num_gpu > 1 and gpu_train:
     net = torch.nn.DataParallel(net).cuda()
+    teacher_net = torch.nn.DataParallel(teacher_net).cuda()
 else:
     net = net.cuda()
+    teacher_net = teacher_net.cuda()
+
 
 cudnn.benchmark = True
 
 
 optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
-criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
+criterion = MultiBoxLoss2(num_classes, 0.35, True, 0, True, 7, 0.35, False, args.r_weight, args.c_weight)
 
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
 with torch.no_grad():
     priors = priorbox.forward()
     priors = priors.cuda()
+
 
 def train():
     net.train()
@@ -115,7 +149,7 @@ def train():
             # create batch iterator
             batch_iterator = iter(data.DataLoader(dataset, batch_size, shuffle=True, num_workers=num_workers, collate_fn=detection_collate))
             if (epoch % 10 == 0 and epoch > 0) or (epoch % 5 == 0 and epoch > cfg['decay1']):
-                torch.save(net.state_dict(), save_folder + cfg['name']+ '_epoch_' + str(epoch) + '.pth')
+                torch.save(net.state_dict(), save_folder + model_name+ '_epoch_' + str(epoch) + '.pth')
             epoch += 1
 
         load_t0 = time.time()
@@ -130,10 +164,13 @@ def train():
 
         # forward
         out = net(images)
+        teacher_out = teacher_net(images)
+
+        # import ipdb; ipdb.set_trace()
 
         # backprop
         optimizer.zero_grad()
-        loss_l, loss_c, loss_landm = criterion(out, priors, targets)
+        loss_l, loss_c, loss_landm = criterion(out, priors, targets, (teacher_out[0].detach(), teacher_out[1].detach()))
         loss = cfg['loc_weight'] * loss_l + loss_c + loss_landm
         loss.backward()
         optimizer.step()
@@ -145,7 +182,7 @@ def train():
               epoch_size, iteration + 1, max_iter, loss_l.item(), loss_c.item(), loss_landm.item(), lr, batch_time, str(datetime.timedelta(seconds=eta))))
         # if iteration == 2:
         #     break
-    torch.save(net.state_dict(), save_folder + cfg['name'] + '_Final.pth')
+    torch.save(net.state_dict(), save_folder + model_name + '_Final.pth')
     # torch.save(net.state_dict(), save_folder + 'Final_Retinaface.pth')
 
 

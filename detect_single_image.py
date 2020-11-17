@@ -16,11 +16,14 @@ if __name__ == "__main__":
     face_detection_list = face_detector.detect_image(img)
 
     # print 
-    [print(d) for d in face_detection_list]
+    # [print(d) for d in face_detection_list]
 
     # visualize
     show_image = True
     if show_image:
         img = face_detector.visualize(img, face_detection_list)
-        cv2.imshow("", img)
-        cv2.waitKey(0)
+
+        name = "test.jpg"
+        cv2.imwrite(name, img)
+        # cv2.imshow("", img)
+        # cv2.waitKey(0)

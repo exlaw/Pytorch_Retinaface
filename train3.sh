@@ -1,0 +1,3 @@
+#CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python train.py --network resnet34 --training_dataset './data/widerface/train/label.txt' --save_folder './Wider_resnet34_weight/'
+#CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python train.py --network resnet18 --training_dataset './data/widerface/train/label.txt' --save_folder './Wider_resnet18_weight/' --resume_net './Wider_resnet18_weight/Resnet18_epoch_60.pth' --resume_epoch 60
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python train_fddb.py --network resnet34 --training_dataset './data/FDDB/train/label.txt' --landm_weight 0 --save_folder './FDDB_resnet34_weight/'

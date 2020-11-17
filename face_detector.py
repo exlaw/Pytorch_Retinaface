@@ -5,7 +5,7 @@ import argparse
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
-from data import cfg_mnet, cfg_re50
+from data import cfg_mnet, cfg_re50, cfg_re18, cfg_re34
 from layers.functions.prior_box import PriorBox
 from utils.nms.py_cpu_nms import py_cpu_nms
 import cv2
@@ -16,9 +16,9 @@ import time
 
 parser = argparse.ArgumentParser(description='Retinaface')
 
-parser.add_argument('-m', '--trained_model', default='./weights/mobilenet0.25_Final.pth',
+parser.add_argument('-m', '--trained_model', default='./weights/Resnet50_Final.pth',
                     type=str, help='Trained state_dict file path to open')
-parser.add_argument('--network', default='mobile0.25', help='Backbone network mobile0.25 or resnet50')
+parser.add_argument('--network', default='resnet18', help='Backbone network mobile0.25 or resnet50')
 parser.add_argument('--cpu', action="store_true", default=True, help='Use cpu inference')
 parser.add_argument('--confidence_threshold', default=0.02, type=float, help='confidence_threshold')
 parser.add_argument('--top_k', default=5000, type=int, help='top_k')
@@ -91,6 +91,9 @@ class FaceDetection:
         return f'#FaceDetection# bbox=[({self.bbox.left},{self.bbox.top})->({self.bbox.right},{self.bbox.bottom})], confidence={self.confidence}'
     
 
+# criterion = MultiBoxLoss(2, 0.35, True, 0, True, 7, 0.35, False)
+
+
 class FaceDetector():
 
     def __init__(self):
@@ -101,9 +104,13 @@ class FaceDetector():
             self.cfg = cfg_mnet
         elif args.network == "resnet50":
             self.cfg = cfg_re50
+        elif args.network == "resnet18":
+            self.cfg = cfg_re18
+        elif args.network == "resnet34":
+            self.cfg = cfg_re34
         # net and model
         self.net = RetinaFace(cfg=self.cfg, phase='test')
-        self.net = load_model(self.net, args.trained_model, args.cpu)
+        # self.net = load_model(self.net, args.trained_model, args.cpu)
         self.net.eval()
         print('Finished loading model!')
         print(self.net)
@@ -115,6 +122,7 @@ class FaceDetector():
 
     def detect_image(self, img) -> List[FaceDetection]:
         # TODO: add detect logic for single image
+        print(np.shape(img))
         tic = time.time()
         img = np.float32(img)
         im_height, im_width, _ = img.shape
@@ -126,6 +134,7 @@ class FaceDetector():
         scale = scale.to(self.device)
 
         loc, conf, landms = self.net(img)  # forward pass
+        
         priorbox = PriorBox(self.cfg, image_size=(im_height, im_width))
         priors = priorbox.forward()
         priors = priors.to(self.device)

@@ -10,7 +10,6 @@ from models.net import FPN as FPN
 from models.net import SSH as SSH
 
 
-
 class ClassHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
         super(ClassHead,self).__init__()
@@ -23,6 +22,7 @@ class ClassHead(nn.Module):
         
         return out.view(out.shape[0], -1, 2)
 
+
 class BboxHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
         super(BboxHead,self).__init__()
@@ -31,8 +31,9 @@ class BboxHead(nn.Module):
     def forward(self,x):
         out = self.conv1x1(x)
         out = out.permute(0,2,3,1).contiguous()
-
-        return out.view(out.shape[0], -1, 4)
+        result = out.view(out.shape[0], -1, 4)
+        # print(result.shape)
+        return result
 
 class LandmarkHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
@@ -68,6 +69,15 @@ class RetinaFace(nn.Module):
         elif cfg['name'] == 'Resnet50':
             import torchvision.models as models
             backbone = models.resnet50(pretrained=cfg['pretrain'])
+        elif cfg['name'] == 'Resnet18':
+            import torchvision.models as models
+            backbone = models.resnet18(pretrained=cfg['pretrain'])
+        elif cfg['name'] == 'Resnet34':
+            import torchvision.models as models
+            backbone = models.resnet34(pretrained=cfg['pretrain'])
+        elif cfg['name'] == 'Resnet152':
+            import torchvision.models as models
+            backbone = models.resnet152(pretrained=cfg['pretrain'])
 
         self.body = _utils.IntermediateLayerGetter(backbone, cfg['return_layers'])
         in_channels_stage2 = cfg['in_channel']
@@ -104,10 +114,9 @@ class RetinaFace(nn.Module):
             landmarkhead.append(LandmarkHead(inchannels,anchor_num))
         return landmarkhead
 
-    def forward(self,inputs):
+    def forward(self, inputs):
         out = self.body(inputs)
 
-        # FPN
         fpn = self.fpn(out)
 
         # SSH
@@ -119,6 +128,8 @@ class RetinaFace(nn.Module):
         bbox_regressions = torch.cat([self.BboxHead[i](feature) for i, feature in enumerate(features)], dim=1)
         classifications = torch.cat([self.ClassHead[i](feature) for i, feature in enumerate(features)],dim=1)
         ldm_regressions = torch.cat([self.LandmarkHead[i](feature) for i, feature in enumerate(features)], dim=1)
+
+        # import ipdb; ipdb.set_trace()
 
         if self.phase == 'train':
             output = (bbox_regressions, classifications, ldm_regressions)

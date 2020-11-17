@@ -20,6 +20,46 @@ cfg_mnet = {
     'out_channel': 64
 }
 
+cfg_re18 = {
+    'name': 'Resnet18',
+    'min_sizes': [[16, 32], [64, 128], [256, 512]],
+    'steps': [8, 16, 32],
+    'variance': [0.1, 0.2],
+    'clip': False,
+    'loc_weight': 2.0,
+    'gpu_train': True,
+    'batch_size': 24,
+    'ngpu': 5,
+    'epoch': 50,
+    'decay1': 70,
+    'decay2': 90,
+    'image_size': 840,
+    'pretrain': True,
+    'return_layers': {'layer2': 1, 'layer3': 2, 'layer4': 3},
+    'in_channel': 64,
+    'out_channel': 64
+}
+
+cfg_re34 = {
+    'name': 'Resnet18',
+    'min_sizes': [[16, 32], [64, 128], [256, 512]],
+    'steps': [8, 16, 32],
+    'variance': [0.1, 0.2],
+    'clip': False,
+    'loc_weight': 2.0,
+    'gpu_train': True,
+    'batch_size':128,
+    'ngpu': 5,
+    'epoch': 100,
+    'decay1': 70,
+    'decay2': 90,
+    'image_size': 840,
+    'pretrain': True,
+    'return_layers': {'layer2': 1, 'layer3': 2, 'layer4': 3},
+    'in_channel': 64,
+    'out_channel': 64
+}
+
 cfg_re50 = {
     'name': 'Resnet50',
     'min_sizes': [[16, 32], [64, 128], [256, 512]],
@@ -28,9 +68,29 @@ cfg_re50 = {
     'clip': False,
     'loc_weight': 2.0,
     'gpu_train': True,
-    'batch_size': 24,
+    'batch_size': 1,
     'ngpu': 4,
     'epoch': 100,
+    'decay1': 70,
+    'decay2': 90,
+    'image_size': 840,
+    'pretrain': True,
+    'return_layers': {'layer2': 1, 'layer3': 2, 'layer4': 3},
+    'in_channel': 256,
+    'out_channel': 256
+}
+
+cfg_re152 = {
+    'name': 'Resnet152',
+    'min_sizes': [[16, 32], [64, 128], [256, 512]],
+    'steps': [8, 16, 32],
+    'variance': [0.1, 0.2],
+    'clip': False,
+    'loc_weight': 2.0,
+    'gpu_train': True,
+    'batch_size': 1,
+    'ngpu': 5,
+    'epoch': 150,
     'decay1': 70,
     'decay2': 90,
     'image_size': 840,
